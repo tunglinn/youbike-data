@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouBike Live — Taipei</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    header .badge {
+      background: #22c55e;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 99px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── STATS BAR ── */
+    #stats-bar {
+      background: #13161f;
+      border-bottom: 1px solid #2d3148;
+      padding: 0 20px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .stat-divider { width: 1px; height: 20px; background: #2d3148; }
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    #status-dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    #status-dot.red   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+
+    /* ── MAIN BODY ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── MAP ── */
+    #map-col {
+      flex: 60;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    #map {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── ALERT STRIP ── */
+    #alert-strip {
+      background: #13161f;
+      border-top: 1px solid #2d3148;
+      flex-shrink: 0;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+    }
+    #alert-tabs {
+      display: flex;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .alert-tab {
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 2px solid transparent;
+      color: #64748b;
+      transition: color 0.15s;
+      user-select: none;
+    }
+    .alert-tab.active { color: #e2e8f0; border-bottom-color: #6366f1; }
+    .alert-tab .count {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 99px;
+    }
+    .alert-tab.empty-tab .count  { background: #dc2626; color: #fff; }
+    .alert-tab.full-tab .count   { background: #2563eb; color: #fff; }
+    .alert-tab.low-tab .count    { background: #d97706; color: #fff; }
+    #alert-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+    }
+    .alert-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.1s;
+    }
+    .alert-item:hover { background: #1e2130; }
+    .alert-item .a-name { color: #cbd5e1; }
+    .alert-item .a-count { font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 99px; }
+    .alert-item.empty .a-count  { background: #7f1d1d; color: #fca5a5; }
+    .alert-item.full  .a-count  { background: #1e3a8a; color: #93c5fd; }
+    .alert-item.low   .a-count  { background: #78350f; color: #fcd34d; }
+
+    /* ── RIGHT PANEL ── */
+    #detail-col {
+      flex: 40;
+      background: #1a1d27;
+      border-left: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 320px;
+    }
+    #detail-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    #detail-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #4b5563;
+      text-align: center;
+      gap: 10px;
+    }
+    #detail-empty .icon { font-size: 40px; }
+    #detail-empty p { font-size: 14px; }
+
+    #detail-info { display: none; }
+    #detail-info.visible { display: block; }
+
+    .station-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.3;
+    }
+    .station-uid {
+      font-size: 11px;
+      color: #475569;
+      margin-top: 2px;
+    }
+    .counts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .count-card {
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .count-card .cc-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+    .count-card .cc-val   { font-size: 22px; font-weight: 700; margin-top: 2px; }
+    .count-card.bikes  .cc-val { color: #22c55e; }
+    .count-card.docks  .cc-val { color: #3b82f6; }
+    .count-card.cap    .cc-val { color: #94a3b8; }
+
+    .chart-wrap {
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .chart-wrap h3 {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    #history-chart { width: 100% !important; height: 160px !important; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <h1>YouBike Live</h1>
+  <span style="color:#64748b;font-size:14px;">—</span>
+  <span style="color:#94a3b8;font-size:14px;">Taipei</span>
+  <span class="badge">LIVE</span>
+</header>
+
+<!-- ── STATS BAR ── -->
+<div id="stats-bar">
+  <div class="stat-item">
+    <span class="stat-label">Total Rows</span>
+    <span class="stat-value" id="s-rows">—</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">DB Size</span>
+    <span class="stat-value" id="s-dbsize">—</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Last Scrape</span>
+    <span class="stat-value" id="s-scrape">—</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Scrapes Today</span>
+    <span class="stat-value" id="s-today">—</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Uptime</span>
+    <span class="stat-value" id="s-uptime">—</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span id="status-dot" class="red"></span>
+    <span class="stat-value" id="s-status">—</span>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div id="main">
+
+  <!-- LEFT: map + alert strip -->
+  <div id="map-col">
+    <div id="map"></div>
+    <div id="alert-strip">
+      <div id="alert-tabs">
+        <div class="alert-tab empty-tab active" data-tab="empty" onclick="switchTab('empty')">
+          Empty <span class="count" id="cnt-empty">0</span>
+        </div>
+        <div class="alert-tab full-tab" data-tab="full" onclick="switchTab('full')">
+          Full <span class="count" id="cnt-full">0</span>
+        </div>
+        <div class="alert-tab low-tab" data-tab="low" onclick="switchTab('low')">
+          Low <span class="count" id="cnt-low">0</span>
+        </div>
+      </div>
+      <div id="alert-content"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: detail panel -->
+  <div id="detail-col">
+    <div id="detail-panel">
+      <div id="detail-empty">
+        <div class="icon">🗺</div>
+        <p>Click any station to view history</p>
+      </div>
+      <div id="detail-info">
+        <div class="station-name" id="d-name"></div>
+        <div class="station-uid" id="d-uid"></div>
+        <div class="counts-grid">
+          <div class="count-card bikes">
+            <div class="cc-label">Available</div>
+            <div class="cc-val" id="d-bikes">—</div>
+          </div>
+          <div class="count-card docks">
+            <div class="cc-label">Docks</div>
+            <div class="cc-val" id="d-docks">—</div>
+          </div>
+          <div class="count-card cap">
+            <div class="cc-label">Capacity</div>
+            <div class="cc-val" id="d-cap">—</div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <h3>24h Availability</h3>
+          <canvas id="history-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   DUMMY DATA
+═══════════════════════════════════════════════ */
+
+const DUMMY_STATS = {
+  total_rows: 125000,
+  db_size_mb: 12.4,
+  last_scrape_time: Date.now() / 1000 - 180,
+  scrapes_today: 287,
+  uptime_seconds: 93600
+};
+
+const DUMMY_LIVE = {
+  empty: [
+    { station_uid: "500101001", name: "捷運市政府站(3號出口)", available_rent_bikes: 0, available_return_bikes: 22, capacity: 22 },
+    { station_uid: "500101002", name: "捷運國父紀念館站(2號出口)", available_rent_bikes: 0, available_return_bikes: 14, capacity: 14 }
+  ],
+  full: [
+    { station_uid: "500101020", name: "市民廣場", available_rent_bikes: 18, available_return_bikes: 0, capacity: 18 }
+  ],
+  low: [
+    { station_uid: "500101031", name: "仁愛光復路口", available_rent_bikes: 2, available_return_bikes: 8, capacity: 10 },
+    { station_uid: "500101032", name: "大安森林公園", available_rent_bikes: 1, available_return_bikes: 15, capacity: 16 }
+  ]
+};
+
+const DUMMY_STATIONS = [
+  { station_uid: "500101001", name: "捷運市政府站(3號出口)",       lat: 25.0408, lng: 121.5647, available_rent_bikes: 0,  available_return_bikes: 22, capacity: 22 },
+  { station_uid: "500101002", name: "捷運國父紀念館站(2號出口)",    lat: 25.0401, lng: 121.5573, available_rent_bikes: 3,  available_return_bikes: 11, capacity: 14 },
+  { station_uid: "500101003", name: "忠孝敦化站",                   lat: 25.0416, lng: 121.5504, available_rent_bikes: 7,  available_return_bikes: 5,  capacity: 12 },
+  { station_uid: "500101004", name: "忠孝復興站",                   lat: 25.0417, lng: 121.5439, available_rent_bikes: 5,  available_return_bikes: 9,  capacity: 14 },
+  { station_uid: "500101005", name: "大安公園站",                   lat: 25.0336, lng: 121.5348, available_rent_bikes: 9,  available_return_bikes: 7,  capacity: 16 },
+  { station_uid: "500101006", name: "台北101/世貿站",               lat: 25.0338, lng: 121.5645, available_rent_bikes: 12, available_return_bikes: 4,  capacity: 16 },
+  { station_uid: "500101007", name: "信義安和站",                   lat: 25.0335, lng: 121.5541, available_rent_bikes: 6,  available_return_bikes: 10, capacity: 16 },
+  { station_uid: "500101008", name: "科技大樓站",                   lat: 25.0264, lng: 121.5436, available_rent_bikes: 4,  available_return_bikes: 12, capacity: 16 },
+  { station_uid: "500101009", name: "六張犁站",                     lat: 25.0227, lng: 121.5511, available_rent_bikes: 8,  available_return_bikes: 6,  capacity: 14 },
+  { station_uid: "500101010", name: "麟光站",                       lat: 25.0215, lng: 121.5593, available_rent_bikes: 3,  available_return_bikes: 9,  capacity: 12 },
+  { station_uid: "500101011", name: "台電大樓站",                   lat: 25.0276, lng: 121.5335, available_rent_bikes: 11, available_return_bikes: 3,  capacity: 14 },
+  { station_uid: "500101012", name: "公館站",                       lat: 25.0144, lng: 121.5339, available_rent_bikes: 5,  available_return_bikes: 9,  capacity: 14 },
+  { station_uid: "500101013", name: "萬隆站",                       lat: 25.0077, lng: 121.5365, available_rent_bikes: 7,  available_return_bikes: 5,  capacity: 12 },
+  { station_uid: "500101014", name: "景美站",                       lat: 24.9990, lng: 121.5428, available_rent_bikes: 2,  available_return_bikes: 10, capacity: 12 },
+  { station_uid: "500101015", name: "中山國中站",                   lat: 25.0570, lng: 121.5453, available_rent_bikes: 6,  available_return_bikes: 6,  capacity: 12 },
+  { station_uid: "500101016", name: "松山機場站",                   lat: 25.0630, lng: 121.5520, available_rent_bikes: 10, available_return_bikes: 8,  capacity: 18 },
+  { station_uid: "500101017", name: "南京復興站",                   lat: 25.0527, lng: 121.5436, available_rent_bikes: 8,  available_return_bikes: 8,  capacity: 16 },
+  { station_uid: "500101018", name: "行天宮站",                     lat: 25.0627, lng: 121.5336, available_rent_bikes: 6,  available_return_bikes: 6,  capacity: 12 },
+  { station_uid: "500101019", name: "中山站",                       lat: 25.0523, lng: 121.5225, available_rent_bikes: 9,  available_return_bikes: 5,  capacity: 14 },
+  { station_uid: "500101020", name: "市民廣場",                     lat: 25.0447, lng: 121.5219, available_rent_bikes: 18, available_return_bikes: 0,  capacity: 18 },
+  { station_uid: "500101031", name: "仁愛光復路口",                 lat: 25.0380, lng: 121.5520, available_rent_bikes: 2,  available_return_bikes: 8,  capacity: 10 },
+  { station_uid: "500101032", name: "大安森林公園",                 lat: 25.0291, lng: 121.5310, available_rent_bikes: 1,  available_return_bikes: 15, capacity: 16 }
+];
+
+// 24h dummy history — one reading every 10 minutes
+const DUMMY_HISTORY = Array.from({ length: 144 }, (_, i) => ({
+  timestamp: Date.now() / 1000 - (143 - i) * 600,
+  available_rent_bikes: Math.max(0, Math.round(8 + 6 * Math.sin(i / 144 * Math.PI * 4) + Math.random() * 2)),
+  available_return_bikes: 16 - Math.max(0, Math.round(8 + 6 * Math.sin(i / 144 * Math.PI * 4)))
+}));
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (d) parts.push(d + "d");
+  if (h) parts.push(h + "h");
+  parts.push(m + "m");
+  return parts.join(" ");
+}
+
+function formatRelativeTime(unixTs) {
+  const diff = Math.floor(Date.now() / 1000 - unixTs);
+  if (diff < 60) return diff + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  return Math.floor(diff / 3600) + "h ago";
+}
+
+function formatHHMM(unixTs) {
+  const d = new Date(unixTs * 1000);
+  return d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
+}
+
+function markerColor(available) {
+  if (available === 0) return "#ef4444";
+  if (available <= 4)  return "#f59e0b";
+  return "#22c55e";
+}
+
+/* ═══════════════════════════════════════════════
+   STATS BAR
+═══════════════════════════════════════════════ */
+
+function renderStats(stats) {
+  document.getElementById("s-rows").textContent   = stats.total_rows.toLocaleString();
+  document.getElementById("s-dbsize").textContent = stats.db_size_mb.toFixed(1) + " MB";
+  document.getElementById("s-scrape").textContent = formatRelativeTime(stats.last_scrape_time);
+  document.getElementById("s-today").textContent  = stats.scrapes_today.toLocaleString();
+  document.getElementById("s-uptime").textContent = formatUptime(stats.uptime_seconds);
+
+  const ageSeconds = Date.now() / 1000 - stats.last_scrape_time;
+  const dot    = document.getElementById("status-dot");
+  const status = document.getElementById("s-status");
+  if (ageSeconds < 600) {
+    dot.className   = "green";
+    status.textContent = "Online";
+    status.style.color = "#22c55e";
+  } else {
+    dot.className   = "red";
+    status.textContent = "Stale";
+    status.style.color = "#ef4444";
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   MAP
+═══════════════════════════════════════════════ */
+
+const map = L.map("map").setView([25.0330, 121.5654], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors",
+  maxZoom: 19
+}).addTo(map);
+
+// station_uid → leaflet circle marker
+const markerMap = {};
+
+function buildMarkers(stations) {
+  stations.forEach(st => {
+    const color  = markerColor(st.available_rent_bikes);
+    const circle = L.circleMarker([st.lat, st.lng], {
+      radius: 9,
+      fillColor: color,
+      color: "#fff",
+      weight: 1.5,
+      fillOpacity: 0.9
+    }).addTo(map);
+
+    circle.bindTooltip(
+      `<b>${st.name}</b><br>🚲 ${st.available_rent_bikes} bikes`,
+      { direction: "top", offset: [0, -6] }
+    );
+
+    circle.on("click", () => selectStation(st, DUMMY_HISTORY));
+    markerMap[st.station_uid] = { circle, station: st };
+  });
+}
+
+let activeUid = null;
+let historyChart = null;
+
+function selectStation(station, history) {
+  // Reset previous selection ring
+  if (activeUid && markerMap[activeUid]) {
+    const prev = markerMap[activeUid].circle;
+    prev.setStyle({ weight: 1.5, color: "#fff" });
+  }
+
+  activeUid = station.station_uid;
+  const { circle } = markerMap[station.station_uid];
+  circle.setStyle({ weight: 3, color: "#818cf8" });
+  map.panTo(circle.getLatLng());
+
+  // Update detail panel
+  document.getElementById("detail-empty").style.display = "none";
+  document.getElementById("detail-info").classList.add("visible");
+  document.getElementById("d-name").textContent  = station.name;
+  document.getElementById("d-uid").textContent   = "UID: " + station.station_uid;
+  document.getElementById("d-bikes").textContent = station.available_rent_bikes;
+  document.getElementById("d-docks").textContent = station.available_return_bikes;
+  document.getElementById("d-cap").textContent   = station.capacity;
+
+  renderChart(history, station.capacity);
+}
+
+function renderChart(history, capacity) {
+  const labels = history.map(h => formatHHMM(h.timestamp));
+  const data   = history.map(h => h.available_rent_bikes);
+
+  if (historyChart) historyChart.destroy();
+
+  const ctx = document.getElementById("history-chart").getContext("2d");
+  historyChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Available bikes",
+        data,
+        borderColor: "#6366f1",
+        backgroundColor: "rgba(99,102,241,0.15)",
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: {
+            color: "#64748b",
+            maxTicksLimit: 8,
+            font: { size: 10 }
+          },
+          grid: { color: "#1e2535" }
+        },
+        y: {
+          min: 0,
+          max: capacity,
+          ticks: { color: "#64748b", font: { size: 10 }, stepSize: Math.ceil(capacity / 4) },
+          grid: { color: "#1e2535" }
+        }
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   ALERT STRIP
+═══════════════════════════════════════════════ */
+
+let currentTab = "empty";
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".alert-tab").forEach(el => {
+    el.classList.toggle("active", el.dataset.tab === tab);
+  });
+  renderAlertContent(DUMMY_LIVE);
+}
+
+function renderAlerts(live) {
+  document.getElementById("cnt-empty").textContent = live.empty.length;
+  document.getElementById("cnt-full").textContent  = live.full.length;
+  document.getElementById("cnt-low").textContent   = live.low.length;
+  renderAlertContent(live);
+}
+
+function renderAlertContent(live) {
+  const items = live[currentTab] || [];
+  const container = document.getElementById("alert-content");
+
+  if (items.length === 0) {
+    container.innerHTML = `<div style="padding:10px;color:#4b5563;font-size:12px;">No stations in this category.</div>`;
+    return;
+  }
+
+  container.innerHTML = items.map(st => {
+    const countLabel = currentTab === "empty"
+      ? `${st.available_rent_bikes} bikes`
+      : currentTab === "full"
+        ? `${st.available_return_bikes} docks`
+        : `${st.available_rent_bikes} bikes`;
+
+    return `
+      <div class="alert-item ${currentTab}" onclick="selectFromAlert('${st.station_uid}')">
+        <span class="a-name">${st.name}</span>
+        <span class="a-count">${countLabel}</span>
+      </div>`;
+  }).join("");
+}
+
+function selectFromAlert(uid) {
+  const entry = markerMap[uid];
+  if (!entry) return;
+  map.setView(entry.circle.getLatLng(), 15);
+  selectStation(entry.station, DUMMY_HISTORY);
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+
+renderStats(DUMMY_STATS);
+buildMarkers(DUMMY_STATIONS);
+renderAlerts(DUMMY_LIVE);
+</script>
+</body>
+</html>
