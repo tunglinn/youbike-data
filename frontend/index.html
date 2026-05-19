@@ -77,14 +77,14 @@
       color: #cbd5e1;
     }
     .stat-divider { width: 1px; height: 20px; background: #2d3148; }
-    #status-dot {
+    #status-dot, #sum-dot {
       width: 8px; height: 8px;
       border-radius: 50%;
       display: inline-block;
       flex-shrink: 0;
     }
-    #status-dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-    #status-dot.red   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+    #status-dot.green, #sum-dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    #status-dot.red,   #sum-dot.red   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
 
     /* ── MAIN BODY ── */
     #main {
@@ -248,6 +248,125 @@
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+
+    /* ── STATS SUMMARY (mobile collapsed line) ── */
+    #stats-summary {
+      display: none; /* hidden on desktop */
+    }
+    .sum-sep { color: #3d4460; font-size: 13px; }
+    #stats-chevron {
+      margin-left: auto;
+      flex-shrink: 0;
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      position: relative;
+      transition: transform 0.2s;
+    }
+    #stats-chevron::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 7px;
+      height: 7px;
+      border-right: 2px solid #64748b;
+      border-bottom: 2px solid #64748b;
+      transform: translate(-50%, -65%) rotate(45deg);
+    }
+    #stats-bar.expanded #stats-chevron { transform: rotate(180deg); }
+    #stats-grid { display: contents; } /* neutral wrapper on desktop */
+
+    @media (max-width: 768px) {
+      #stats-bar {
+        flex-direction: column;
+        height: auto;
+        padding: 0;
+        gap: 0;
+      }
+      #stats-summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        height: 40px;
+        cursor: pointer;
+        user-select: none;
+        width: 100%;
+      }
+      #stats-grid {
+        display: none;
+        flex-wrap: wrap;
+        padding: 8px 14px 10px;
+        border-top: 1px solid #2d3148;
+      }
+      #stats-bar.expanded #stats-grid { display: flex; }
+      #stats-grid .stat-item {
+        width: 33.333%;
+        flex-direction: column;
+        gap: 2px;
+        padding: 5px 0;
+      }
+      #stats-grid .stat-divider { display: none; }
+    }
+
+    /* ── MOBILE BOTTOM SHEET ── */
+    #sheet-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 999;
+    }
+    #sheet-handle {
+      display: none;
+      width: 36px;
+      height: 4px;
+      background: #3d4460;
+      border-radius: 2px;
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+    #sheet-close {
+      display: none;
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+    #sheet-close:hover { color: #e2e8f0; }
+
+    @media (max-width: 768px) {
+      #detail-col {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        height: 72vh;
+        width: 100%;
+        flex: none;
+        min-width: unset;
+        border-left: none;
+        border-top: 1px solid #2d3148;
+        border-radius: 16px 16px 0 0;
+        transform: translateY(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #detail-col.sheet-open    { transform: translateY(0); }
+      #sheet-backdrop.visible   { display: block; }
+      #sheet-handle             { display: block; }
+      #sheet-close              { display: block; }
+      #map-col                  { flex: 1; }
+      #alert-strip              { height: 140px; }
+      #stats-bar                { gap: 16px; padding: 0 12px; }
+    }
   </style>
 </head>
 <body>
@@ -262,36 +381,52 @@
 
 <!-- ── STATS BAR ── -->
 <div id="stats-bar">
-  <div class="stat-item">
-    <span class="stat-label">Total Rows</span>
-    <span class="stat-value" id="s-rows">—</span>
+  <!-- mobile: collapsed summary line -->
+  <div id="stats-summary" onclick="toggleStats()">
+    <span id="sum-dot" class="red"></span>
+    <span id="sum-status" style="font-size:13px;font-weight:600;">—</span>
+    <span class="sum-sep">·</span>
+    <span id="sum-scrape" style="font-size:13px;color:#94a3b8;">—</span>
+    <span class="sum-sep">·</span>
+    <span id="sum-rows" style="font-size:13px;color:#94a3b8;">—</span>
+    <span id="stats-chevron"></span>
   </div>
-  <div class="stat-divider"></div>
-  <div class="stat-item">
-    <span class="stat-label">DB Size</span>
-    <span class="stat-value" id="s-dbsize">—</span>
-  </div>
-  <div class="stat-divider"></div>
-  <div class="stat-item">
-    <span class="stat-label">Last Scrape</span>
-    <span class="stat-value" id="s-scrape">—</span>
-  </div>
-  <div class="stat-divider"></div>
-  <div class="stat-item">
-    <span class="stat-label">Scrapes Today</span>
-    <span class="stat-value" id="s-today">—</span>
-  </div>
-  <div class="stat-divider"></div>
-  <div class="stat-item">
-    <span class="stat-label">Uptime</span>
-    <span class="stat-value" id="s-uptime">—</span>
-  </div>
-  <div class="stat-divider"></div>
-  <div class="stat-item">
-    <span id="status-dot" class="red"></span>
-    <span class="stat-value" id="s-status">—</span>
+  <!-- desktop: always visible / mobile: expanded grid -->
+  <div id="stats-grid">
+    <div class="stat-item">
+      <span class="stat-label">Total Rows</span>
+      <span class="stat-value" id="s-rows">—</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-label">DB Size</span>
+      <span class="stat-value" id="s-dbsize">—</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-label">Last Scrape</span>
+      <span class="stat-value" id="s-scrape">—</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-label">Scrapes Today</span>
+      <span class="stat-value" id="s-today">—</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-label">Uptime</span>
+      <span class="stat-value" id="s-uptime">—</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span id="status-dot" class="red"></span>
+      <span class="stat-value" id="s-status">—</span>
+    </div>
   </div>
 </div>
+
+<!-- mobile bottom-sheet backdrop -->
+<div id="sheet-backdrop" onclick="closeSheet()"></div>
 
 <!-- ── MAIN ── -->
 <div id="main">
@@ -315,8 +450,10 @@
     </div>
   </div>
 
-  <!-- RIGHT: detail panel -->
+  <!-- RIGHT: detail panel / mobile bottom sheet -->
   <div id="detail-col">
+    <div id="sheet-handle"></div>
+    <button id="sheet-close" onclick="closeSheet()" aria-label="Close">&#x2715;</button>
     <div id="detail-panel">
       <div id="detail-empty">
         <div class="icon">🗺</div>
@@ -446,24 +583,35 @@ function markerColor(available) {
 ═══════════════════════════════════════════════ */
 
 function renderStats(stats) {
+  const scrapeLabel = formatRelativeTime(stats.last_scrape_time);
+  const rowsLabel   = (stats.total_rows / 1000).toFixed(0) + "k rows";
+
   document.getElementById("s-rows").textContent   = stats.total_rows.toLocaleString();
   document.getElementById("s-dbsize").textContent = stats.db_size_mb.toFixed(1) + " MB";
-  document.getElementById("s-scrape").textContent = formatRelativeTime(stats.last_scrape_time);
+  document.getElementById("s-scrape").textContent = scrapeLabel;
   document.getElementById("s-today").textContent  = stats.scrapes_today.toLocaleString();
   document.getElementById("s-uptime").textContent = formatUptime(stats.uptime_seconds);
 
+  // summary line
+  document.getElementById("sum-scrape").textContent = scrapeLabel;
+  document.getElementById("sum-rows").textContent   = rowsLabel;
+
   const ageSeconds = Date.now() / 1000 - stats.last_scrape_time;
-  const dot    = document.getElementById("status-dot");
-  const status = document.getElementById("s-status");
-  if (ageSeconds < 600) {
-    dot.className   = "green";
-    status.textContent = "Online";
-    status.style.color = "#22c55e";
-  } else {
-    dot.className   = "red";
-    status.textContent = "Stale";
-    status.style.color = "#ef4444";
-  }
+  const online = ageSeconds < 600;
+
+  document.getElementById("status-dot").className  = online ? "green" : "red";
+  document.getElementById("sum-dot").className     = online ? "green" : "red";
+
+  const label = online ? "Online" : "Stale";
+  const color = online ? "#22c55e" : "#ef4444";
+  document.getElementById("s-status").textContent  = label;
+  document.getElementById("s-status").style.color  = color;
+  document.getElementById("sum-status").textContent = label;
+  document.getElementById("sum-status").style.color = color;
+}
+
+function toggleStats() {
+  document.getElementById("stats-bar").classList.toggle("expanded");
 }
 
 /* ═══════════════════════════════════════════════
@@ -514,6 +662,12 @@ function selectStation(station, history) {
   const { circle } = markerMap[station.station_uid];
   circle.setStyle({ weight: 3, color: "#818cf8" });
   map.panTo(circle.getLatLng());
+
+  // Open bottom sheet on mobile
+  if (window.innerWidth <= 768) {
+    document.getElementById("detail-col").classList.add("sheet-open");
+    document.getElementById("sheet-backdrop").classList.add("visible");
+  }
 
   // Update detail panel
   document.getElementById("detail-empty").style.display = "none";
@@ -572,6 +726,11 @@ function renderChart(history, capacity) {
       }
     }
   });
+}
+
+function closeSheet() {
+  document.getElementById("detail-col").classList.remove("sheet-open");
+  document.getElementById("sheet-backdrop").classList.remove("visible");
 }
 
 /* ═══════════════════════════════════════════════
