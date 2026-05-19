@@ -4,6 +4,7 @@ import time
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 import database as db
 
@@ -59,3 +60,7 @@ def stations_latest():
 @app.on_event("startup")
 def on_startup():
     app.state.start_time = int(time.time())
+
+
+# Serve frontend — must be mounted last so API routes take priority
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

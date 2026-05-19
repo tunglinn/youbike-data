@@ -6,7 +6,10 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "youbike.db")
 
 
 def _conn():
-    return sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA busy_timeout=5000")
+    return con
 
 
 def init_db():
