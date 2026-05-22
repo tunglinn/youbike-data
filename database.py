@@ -96,15 +96,17 @@ def get_empty_stations() -> list[dict]:
     with _conn() as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
+            WITH latest AS (
+                SELECT station_uid, MAX(timestamp) AS ts
+                FROM availability
+                GROUP BY station_uid
+            )
             SELECT a.station_uid, m.name,
                    a.available_rent_bikes, a.available_return_bikes, a.capacity
             FROM availability a
+            JOIN latest l ON a.station_uid = l.station_uid AND a.timestamp = l.ts
             JOIN station_meta m USING (station_uid)
-            WHERE a.timestamp = (
-                SELECT MAX(timestamp) FROM availability
-                WHERE station_uid = a.station_uid
-            )
-            AND a.available_rent_bikes = 0
+            WHERE a.available_rent_bikes = 0
             ORDER BY m.name
         """).fetchall()
         return [dict(r) for r in rows]
@@ -114,15 +116,17 @@ def get_full_stations() -> list[dict]:
     with _conn() as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
+            WITH latest AS (
+                SELECT station_uid, MAX(timestamp) AS ts
+                FROM availability
+                GROUP BY station_uid
+            )
             SELECT a.station_uid, m.name,
                    a.available_rent_bikes, a.available_return_bikes, a.capacity
             FROM availability a
+            JOIN latest l ON a.station_uid = l.station_uid AND a.timestamp = l.ts
             JOIN station_meta m USING (station_uid)
-            WHERE a.timestamp = (
-                SELECT MAX(timestamp) FROM availability
-                WHERE station_uid = a.station_uid
-            )
-            AND a.available_return_bikes = 0
+            WHERE a.available_return_bikes = 0
             ORDER BY m.name
         """).fetchall()
         return [dict(r) for r in rows]
@@ -132,15 +136,17 @@ def get_low_stations(threshold: int = 3) -> list[dict]:
     with _conn() as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
+            WITH latest AS (
+                SELECT station_uid, MAX(timestamp) AS ts
+                FROM availability
+                GROUP BY station_uid
+            )
             SELECT a.station_uid, m.name,
                    a.available_rent_bikes, a.available_return_bikes, a.capacity
             FROM availability a
+            JOIN latest l ON a.station_uid = l.station_uid AND a.timestamp = l.ts
             JOIN station_meta m USING (station_uid)
-            WHERE a.timestamp = (
-                SELECT MAX(timestamp) FROM availability
-                WHERE station_uid = a.station_uid
-            )
-            AND a.available_rent_bikes > 0
+            WHERE a.available_rent_bikes > 0
             AND a.available_rent_bikes <= ?
             ORDER BY a.available_rent_bikes, m.name
         """, (threshold,)).fetchall()
@@ -164,14 +170,16 @@ def get_all_latest() -> list[dict]:
     with _conn() as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
+            WITH latest AS (
+                SELECT station_uid, MAX(timestamp) AS ts
+                FROM availability
+                GROUP BY station_uid
+            )
             SELECT a.station_uid, m.name, m.lat, m.lng,
                    a.available_rent_bikes, a.available_return_bikes, a.capacity
             FROM availability a
+            JOIN latest l ON a.station_uid = l.station_uid AND a.timestamp = l.ts
             JOIN station_meta m USING (station_uid)
-            WHERE a.timestamp = (
-                SELECT MAX(timestamp) FROM availability
-                WHERE station_uid = a.station_uid
-            )
             ORDER BY m.name
         """).fetchall()
         return [dict(r) for r in rows]
