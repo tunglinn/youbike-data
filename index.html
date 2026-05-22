@@ -632,7 +632,7 @@ function toggleStats() {
    MAP
 ═══════════════════════════════════════════════ */
 
-const map = L.map("map").setView([25.0330, 121.5654], 13);
+const map = L.map("map").setView([25.0477, 121.5170], 15);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "© OpenStreetMap contributors",
   maxZoom: 19
@@ -770,6 +770,35 @@ function closeSheet() {
   document.getElementById("detail-col").classList.remove("sheet-open");
   document.getElementById("sheet-backdrop").classList.remove("visible");
 }
+
+function initSwipeToClose() {
+  const sheet  = document.getElementById("detail-col");
+  const handle = document.getElementById("sheet-handle");
+  let startY = 0, dy = 0, active = false;
+
+  handle.addEventListener("touchstart", e => {
+    startY = e.touches[0].clientY;
+    dy = 0;
+    active = true;
+    sheet.style.transition = "none";
+  }, { passive: true });
+
+  document.addEventListener("touchmove", e => {
+    if (!active) return;
+    dy = Math.max(0, e.touches[0].clientY - startY);
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+
+  document.addEventListener("touchend", () => {
+    if (!active) return;
+    active = false;
+    sheet.style.transition = "";
+    sheet.style.transform = "";
+    if (dy > 80) closeSheet();
+  });
+}
+
+initSwipeToClose();
 
 /* ═══════════════════════════════════════════════
    ALERT STRIP
