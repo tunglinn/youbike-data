@@ -568,6 +568,19 @@ function markerColor(available) {
   return "#22c55e";
 }
 
+function stationRadius(capacity) {
+  return Math.max(5, Math.min(13, capacity / 4));
+}
+
+function formatDateTime(unixTs) {
+  const d = new Date(unixTs * 1000);
+  const mo  = (d.getMonth() + 1).toString().padStart(2, "0");
+  const day = d.getDate().toString().padStart(2, "0");
+  const hh  = d.getHours().toString().padStart(2, "0");
+  const mm  = d.getMinutes().toString().padStart(2, "0");
+  return `${mo}/${day} ${hh}:${mm}`;
+}
+
 async function apiFetch(path) {
   const url = CONFIG.api_base + path;
   console.log("[debug] fetching:", url);
@@ -651,7 +664,7 @@ function updateMarkers(stations) {
     } else {
       const isActive = uid === activeUid;
       const circle = L.circleMarker([st.lat, st.lng], {
-        radius: 9,
+        radius: stationRadius(st.capacity),
         fillColor: markerColor(st.available_rent_bikes),
         color: isActive ? "#818cf8" : "#fff",
         weight: isActive ? 3 : 1.5,
@@ -718,7 +731,7 @@ function renderChart(history, capacity) {
   historyChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: history.map(h => formatHHMM(h.timestamp)),
+      labels: history.map(h => formatDateTime(h.timestamp)),
       datasets: [{
         label: "Available bikes",
         data: history.map(h => h.available_rent_bikes),
@@ -726,6 +739,7 @@ function renderChart(history, capacity) {
         backgroundColor: "rgba(99,102,241,0.15)",
         borderWidth: 2,
         pointRadius: 0,
+        pointHitRadius: 20,
         fill: true,
         tension: 0.4
       }]
@@ -734,6 +748,7 @@ function renderChart(history, capacity) {
       animation: false,
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
       plugins: { legend: { display: false } },
       scales: {
         x: {
@@ -743,7 +758,7 @@ function renderChart(history, capacity) {
         y: {
           min: 0,
           max: capacity,
-          ticks: { color: "#64748b", font: { size: 10 }, stepSize: Math.ceil(capacity / 4) },
+          ticks: { color: "#64748b", font: { size: 10 }, maxTicksLimit: 5 },
           grid: { color: "#1e2535" }
         }
       }
