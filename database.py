@@ -41,6 +41,9 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_avail_uid_ts
                 ON availability (station_uid, timestamp DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_station_meta_lat_lng
+                ON station_meta (lat, lng);
         """)
 
 
@@ -163,6 +166,24 @@ def get_station_history(station_uid: str, hours: int = 24) -> list[dict]:
             WHERE station_uid = ? AND timestamp >= ?
             ORDER BY timestamp ASC
         """, (station_uid, cutoff)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_latest_in_bbox(min_lat: float, max_lat: float, min_lng: float, max_lng: float) -> list[dict]:
+    with _conn() as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute("""
+            SELECT m.station_uid, m.name, m.lat, m.lng,
+                   a.available_rent_bikes, a.available_return_bikes, a.capacity
+            FROM station_meta m
+            JOIN availability a ON a.station_uid = m.station_uid
+                AND a.timestamp = (
+                    SELECT MAX(timestamp) FROM availability
+                    WHERE station_uid = m.station_uid
+                )
+            WHERE m.lat BETWEEN ? AND ? AND m.lng BETWEEN ? AND ?
+            ORDER BY m.name
+        """, (min_lat, max_lat, min_lng, max_lng)).fetchall()
         return [dict(r) for r in rows]
 
 

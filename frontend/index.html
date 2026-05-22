@@ -528,10 +528,12 @@
    CONFIG
 ═══════════════════════════════════════════════ */
 
+console.log("[debug] protocol:", location.protocol, "hostname:", location.hostname, "origin:", location.origin);
 const CONFIG = {
-  api_base:            "https://youbike-api.tunglin.workers.dev",
+  api_base:            location.protocol === "http:" ? "" : "https://youbike-api.tunglin.workers.dev",
   refresh_interval_ms: 30000
 };
+console.log("[debug] api_base resolved to:", JSON.stringify(CONFIG.api_base) || "(empty string — using relative URLs)");
 
 /* ═══════════════════════════════════════════════
    HELPERS
@@ -567,12 +569,14 @@ function markerColor(available) {
 }
 
 async function apiFetch(path) {
+  const url = CONFIG.api_base + path;
+  console.log("[debug] fetching:", url);
   try {
-    const res = await fetch(CONFIG.api_base + path);
+    const res = await fetch(url);
     if (!res.ok) throw new Error(res.status);
     return await res.json();
   } catch (e) {
-    console.error("API error:", path, e);
+    console.error("API error:", url, e);
     return null;
   }
 }
@@ -623,24 +627,46 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const markerMap = {};
 
-function buildMarkers(stations) {
+function getBbox() {
+  const b = map.getBounds();
+  return `min_lat=${b.getSouth()}&max_lat=${b.getNorth()}&min_lng=${b.getWest()}&max_lng=${b.getEast()}`;
+}
+
+function updateMarkers(stations) {
+  const inView = new Set(stations.map(s => s.station_uid));
+
+  for (const uid of Object.keys(markerMap)) {
+    if (!inView.has(uid)) {
+      markerMap[uid].circle.remove();
+      delete markerMap[uid];
+    }
+  }
+
   stations.forEach(st => {
-    const circle = L.circleMarker([st.lat, st.lng], {
-      radius: 9,
-      fillColor: markerColor(st.available_rent_bikes),
-      color: "#fff",
-      weight: 1.5,
-      fillOpacity: 0.9
-    }).addTo(map);
-
-    circle.bindTooltip(
-      `<b>${st.name}</b><br>🚲 ${st.available_rent_bikes} bikes`,
-      { direction: "top", offset: [0, -6] }
-    );
-
-    circle.on("click", () => selectStation(st));
-    markerMap[st.station_uid] = { circle, station: st };
+    const uid = st.station_uid;
+    if (markerMap[uid]) {
+      markerMap[uid].circle.setStyle({ fillColor: markerColor(st.available_rent_bikes) });
+      markerMap[uid].circle.setTooltipContent(`<b>${st.name}</b><br>🚲 ${st.available_rent_bikes} bikes`);
+      markerMap[uid].station = st;
+    } else {
+      const isActive = uid === activeUid;
+      const circle = L.circleMarker([st.lat, st.lng], {
+        radius: 9,
+        fillColor: markerColor(st.available_rent_bikes),
+        color: isActive ? "#818cf8" : "#fff",
+        weight: isActive ? 3 : 1.5,
+        fillOpacity: 0.9
+      }).addTo(map);
+      circle.bindTooltip(`<b>${st.name}</b><br>🚲 ${st.available_rent_bikes} bikes`, { direction: "top", offset: [0, -6] });
+      circle.on("click", () => selectStation(markerMap[uid].station));
+      markerMap[uid] = { circle, station: st };
+    }
   });
+}
+
+async function loadViewport() {
+  const stations = await apiFetch("/stations/latest?" + getBbox());
+  if (stations) updateMarkers(stations);
 }
 
 let activeUid   = null;
@@ -797,20 +823,19 @@ async function refreshLive() {
 
 async function init() {
   const [stations, stats, live] = await Promise.all([
-    apiFetch("/stations/latest"),
+    apiFetch("/stations/latest?" + getBbox()),
     apiFetch("/stats"),
     apiFetch("/live"),
   ]);
 
-  if (stations && stations.length > 0) {
-    buildMarkers(stations);
-  }
+  if (stations) updateMarkers(stations);
   document.getElementById("map-loading").classList.add("hidden");
 
   renderStats(stats);
   renderAlerts(live);
 
-  setInterval(refreshLive, CONFIG.refresh_interval_ms);
+  map.on("moveend", loadViewport);
+  setInterval(() => Promise.all([refreshLive(), loadViewport()]), CONFIG.refresh_interval_ms);
 }
 
 init();

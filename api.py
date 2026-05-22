@@ -53,7 +53,14 @@ def history(station_uid: str, hours: int = Query(default=24, ge=1, le=168)):
 
 
 @app.get("/stations/latest")
-def stations_latest():
+def stations_latest(
+    min_lat: float | None = Query(default=None),
+    max_lat: float | None = Query(default=None),
+    min_lng: float | None = Query(default=None),
+    max_lng: float | None = Query(default=None),
+):
+    if all(v is not None for v in (min_lat, max_lat, min_lng, max_lng)):
+        return db.get_latest_in_bbox(min_lat, max_lat, min_lng, max_lng)
     return db.get_all_latest()
 
 
