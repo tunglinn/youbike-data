@@ -156,7 +156,7 @@ def get_low_stations(threshold: int = 3) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def get_station_history(station_uid: str, hours: int = 24) -> list[dict]:
+def get_station_history(station_uid: str, hours: int = 24, fallback_points: int = 120) -> list[dict]:
     cutoff = int(time.time()) - hours * 3600
     with _conn() as con:
         con.row_factory = sqlite3.Row
@@ -166,7 +166,19 @@ def get_station_history(station_uid: str, hours: int = 24) -> list[dict]:
             WHERE station_uid = ? AND timestamp >= ?
             ORDER BY timestamp ASC
         """, (station_uid, cutoff)).fetchall()
-        return [dict(r) for r in rows]
+        if rows:
+            return [dict(r) for r in rows]
+
+        # Fallback for stale datasets: return most recent points when the
+        # requested time window has no rows.
+        fallback_rows = con.execute("""
+            SELECT timestamp, available_rent_bikes, available_return_bikes
+            FROM availability
+            WHERE station_uid = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, (station_uid, fallback_points)).fetchall()
+        return [dict(r) for r in reversed(fallback_rows)]
 
 
 def get_latest_in_bbox(min_lat: float, max_lat: float, min_lng: float, max_lng: float) -> list[dict]:
